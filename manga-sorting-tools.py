@@ -141,7 +141,7 @@ def organize_manga_directory(directory):
                         print(f"Moved '{file_name}' to '{target_folder}'")
 
 if __name__ == "__main__":
-    choice = input("Manga Sorting Tools, by rarenight\n\nSelect an option:\n1. Manga Hasher\n2. Manga Verifier\n3. Manga Organizer\nEnter 1, 2, or 3: ")
+    choice = input("Manga Sorting Tools\nby rarenight\n\nSelect an option:\n1. Manga Hasher\n2. Manga Verifier\n3. Manga Organizer\n\nEnter 1, 2, or 3: ")
     
     if choice == '1':
         directory = input("Enter the directory to process: ")
