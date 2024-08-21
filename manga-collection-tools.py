@@ -58,7 +58,11 @@ def verify_files_in_directory(directory):
     mismatched_files = []
     matches = 0
     mismatches = 0
+    
+    print("Starting verification process...\n")
+
     for root, _, files in os.walk(directory):
+        print(f"Checking directory: {root}")
         for file_name in files:
             if file_name.endswith(('.zip', '.rar', '.7z', '.cbz', '.cbr')) and '[' in file_name and ']' in file_name:
                 file_path = os.path.join(root, file_name)
@@ -68,18 +72,21 @@ def verify_files_in_directory(directory):
                 
                 if crc32_in_name == calculated_crc32:
                     matches += 1
+                    print(f"Match: {file_name}")
                     log.append(f"Match: {file_name}")
                 else:
                     mismatches += 1
                     mismatched_files.append(file_path)
+                    print(f"Mismatch: {file_name} (Expected: {crc32_in_name}, Found: {calculated_crc32})")
                     log.append(f"Mismatch: {file_name} (Expected: {crc32_in_name}, Found: {calculated_crc32})")
                     
     log.append(f"\nTotal Matches: {matches}")
     log.append(f"Total Mismatches: {mismatches}")
     
     if mismatches > 0:
-        log.append("\nMismatched Files:")
+        print("\nMismatched Files:")
         for file in mismatched_files:
+            print(file)
             log.append(file)
     
     return log, mismatched_files
