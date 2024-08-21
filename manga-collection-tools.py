@@ -82,71 +82,72 @@ def verify_files_in_directory(directory):
     return log, mismatched_files
 
 def organize_manga_directory(directory):
+    organized_files = {}
+
     for root, _, files in os.walk(directory):
         for file_name in files:
             if file_name.endswith(('.cbz', '.cbr')):
-                title_match = re.match(r'(.+?) v(\d+)', file_name)
+                title_match = re.match(r'(.+?) (?:v(\d+)|(\d+)) \((\d{4})\) \(Digital\) \(([^()]+)\)', file_name)
                 if title_match:
                     title = title_match.group(1).strip()
-                    volume = title_match.group(2).strip()
-                    year_match = re.search(r'\((\d{4})\)', file_name)
-                    contributor_match = re.search(r'\(([^()]+)\)\s*\(Digital\)\s*\(([^()]+)\)\s*(\(v\))?\s*\[\w+\]\.cbz', file_name)
+                    volume = title_match.group(2)
+                    chapter = title_match.group(3)
+                    year = title_match.group(4)
+                    contributor = title_match.group(5)
                     v_match = '(v)' in file_name
-                    year = year_match.group(1) if year_match else ''
-                    contributor = contributor_match.group(2) if contributor_match else ''
-                    folder_name = f"{title} v{volume} ({year}) (Digital) ({contributor})"
+
+                    key = title.strip()
+
+                    if key not in organized_files:
+                        organized_files[key] = {
+                            'volumes': set(),
+                            'chapters': set(),
+                            'years': set(),
+                            'contributors': set(),
+                            'v_flag': v_match,
+                            'files': []
+                        }
+
+                    if volume:
+                        organized_files[key]['volumes'].add(int(volume))
+                    if chapter:
+                        organized_files[key]['chapters'].add(int(chapter))
+                    if year:
+                        organized_files[key]['years'].add(int(year))
+                    if contributor:
+                        organized_files[key]['contributors'].add(contributor)
                     if v_match:
-                        folder_name += ' (v)'
-                    folder_path = os.path.join(root, folder_name)
-                    if not os.path.exists(folder_path):
-                        os.makedirs(folder_path)
-                    shutil.move(os.path.join(root, file_name), folder_path)
+                        organized_files[key]['v_flag'] = True
+                    organized_files[key]['files'].append(os.path.join(root, file_name))
 
-    for root, subdirs, files in os.walk(directory):
-        for subdir in subdirs:
-            subdir_path = os.path.join(root, subdir)
-            archive_files = [f for f in os.listdir(subdir_path) if f.endswith(('.cbz', '.cbr'))]
-            volumes = []
-            years = []
-            contributors = set()
-            v_flag = False
-            
-            for file_name in archive_files:
-                volume_match = re.search(r'v(\d+)', file_name)
-                year_match = re.search(r'\((\d{4})\)', file_name)
-                contributor_match = re.search(r'\(([^()]+)\)\s*\(Digital\)\s*\(([^()]+)\)\s*(\(v\))?\s*\[\w+\]\.cbz', file_name)
-                if '(v)' in file_name:
-                    v_flag = True
-                if volume_match:
-                    volumes.append(int(volume_match.group(1)))
-                if year_match:
-                    years.append(int(year_match.group(1)))
-                if contributor_match:
-                    contributors.add(contributor_match.group(2))
+    for title, info in organized_files.items():
+        volume_range = f"v{min(info['volumes']):02d}-{max(info['volumes']):02d}" if len(info['volumes']) > 1 else f"v{list(info['volumes'])[0]:02d}" if info['volumes'] else ''
+        chapter_range = f"{min(info['chapters']):03d}-{max(info['chapters']):03d}" if len(info['chapters']) > 1 else f"{list(info['chapters'])[0]:03d}" if info['chapters'] else ''
+        year_range = f"{min(info['years'])}-{max(info['years'])}" if len(info['years']) > 1 else f"{list(info['years'])[0]}" if info['years'] else ''
+        contributors_str = ', '.join(sorted(info['contributors']))
 
-            if volumes:
-                volume_range = f"v{min(volumes):02d}-{max(volumes):02d}" if len(volumes) > 1 else f"v{volumes[0]:02d}"
-            else:
-                volume_range = ""
+        if volume_range and chapter_range:
+            combined_range = f"{volume_range}, {chapter_range}"
+        else:
+            combined_range = volume_range if volume_range else chapter_range
 
-            if years:
-                year_range = f"{min(years)}-{max(years)}" if len(set(years)) > 1 else f"{years[0]}"
-            else:
-                year_range = ""
+        new_folder_name = f"{title} ({combined_range}) ({year_range}) (Digital) ({contributors_str})"
+        if info['v_flag']:
+            new_folder_name += ' (v)'
 
-            contributors_str = ', '.join(sorted(contributors))
-            new_folder_name = f"{subdir.rsplit(' v', 1)[0]} {volume_range} ({year_range}) (Digital) ({contributors_str})"
-            if v_flag:
-                new_folder_name += ' (v)'
-            new_folder_path = os.path.join(root, new_folder_name)
+        new_folder_path = os.path.join(directory, new_folder_name)
 
-            if subdir_path != new_folder_path:
-                os.rename(subdir_path, new_folder_path)
-                print(f"Renamed folder '{subdir_path}' to '{new_folder_path}'")
+        if not os.path.exists(new_folder_path):
+            os.makedirs(new_folder_path)
+
+        for file_path in info['files']:
+            shutil.move(file_path, new_folder_path)
+
+        print(f"Created folder '{new_folder_name}' with files moved.")
 
 if __name__ == "__main__":
-    choice = input("Manga Collecting Tools\nby rarenight\n\nSelect an option:\n1. Manga Hasher\n2. Manga Verifier\n3. Manga Organizer\n\nEnter 1, 2, or 3: ")
-    
+    choice = input("Manga Collection Tools\nby rarenight\n\nSelect an option:\n1. Manga Hasher\n2. Manga Verifier\n3. Manga Organizer\n\nEnter 1, 2, or 3: ")
+
     if choice == '1':
         directory = input("Enter the directory to process: ")
         if os.path.isdir(directory):
@@ -157,7 +158,7 @@ if __name__ == "__main__":
             print("Processing completed.")
         else:
             print("Invalid directory.")
-    
+
     elif choice == '2':
         directory = input("Enter the directory to verify: ")
         if os.path.isdir(directory):
@@ -165,7 +166,7 @@ if __name__ == "__main__":
             print("\nVerification Log:")
             for entry in log:
                 print(entry)
-            
+
             if mismatched_files:
                 print(f"\n{len(mismatched_files)} mismatched files found.")
                 export_choice = input("Would you like to export the mismatched files to a text file? (y/n): ")
@@ -182,7 +183,7 @@ if __name__ == "__main__":
                 print("All files verified successfully.")
         else:
             print("Invalid directory.")
-    
+
     elif choice == '3':
         directory = input("Enter the directory to organize: ")
         if os.path.isdir(directory):
@@ -190,6 +191,6 @@ if __name__ == "__main__":
             print("Manga organization completed.")
         else:
             print("Invalid directory.")
-    
+
     else:
         print("Invalid choice.")
