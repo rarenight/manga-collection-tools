@@ -77,11 +77,6 @@ def verify_files_in_directory(directory):
                     mismatches += 1
                     mismatched_files.append(file_path)
                     log.append(f"Mismatch: {file_name} (Expected: {crc32_in_name}, Found: {calculated_crc32})")
-                    
-    if mismatches > 0:
-        print("\nSummary of Mismatched Files:")
-        for file in mismatched_files:
-            print(file)
     
     log.append(f"\nTotal Matches: {matches}")
     log.append(f"Total Mismatches: {mismatches}")
@@ -174,9 +169,10 @@ if __name__ == "__main__":
         directory = input("Enter the directory to verify: ")
         if os.path.isdir(directory):
             log, mismatched_files = verify_files_in_directory(directory)
-            print("\nVerification Log:")
-            for entry in log:
-                print(entry)
+            if len(mismatched_files) > 0:
+                print("\nSummary of Mismatched Files:")
+                for entry in log:
+                    print(entry)
 
             if mismatched_files:
                 print(f"\n{len(mismatched_files)} mismatched files found.")
@@ -191,7 +187,7 @@ if __name__ == "__main__":
                     except Exception as e:
                         print(f"Error exporting mismatched files: {e}")
             else:
-                print("All files verified successfully.")
+                print("\nAll files verified successfully.")
         else:
             print("Invalid directory.")
 
