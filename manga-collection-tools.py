@@ -73,21 +73,18 @@ def verify_files_in_directory(directory):
                 if crc32_in_name == calculated_crc32:
                     matches += 1
                     print(f"Match: {file_name}")
-                    log.append(f"Match: {file_name}")
                 else:
                     mismatches += 1
                     mismatched_files.append(file_path)
-                    print(f"Mismatch: {file_name} (Expected: {crc32_in_name}, Found: {calculated_crc32})")
                     log.append(f"Mismatch: {file_name} (Expected: {crc32_in_name}, Found: {calculated_crc32})")
                     
-    log.append(f"\nTotal Matches: {matches}")
-    log.append(f"Total Mismatches: {mismatches}")
-    
     if mismatches > 0:
-        print("\nMismatched Files:")
+        print("\nSummary of Mismatched Files:")
         for file in mismatched_files:
             print(file)
-            log.append(file)
+    
+    log.append(f"\nTotal Matches: {matches}")
+    log.append(f"Total Mismatches: {mismatches}")
     
     return log, mismatched_files
 
