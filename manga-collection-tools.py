@@ -145,7 +145,7 @@ def organize_manga_directory(directory):
                 print(f"Renamed folder '{subdir_path}' to '{new_folder_path}'")
 
 if __name__ == "__main__":
-    choice = input("Manga Sorting Tools\nby rarenight\n\nSelect an option:\n1. Manga Hasher\n2. Manga Verifier\n3. Manga Organizer\n\nEnter 1, 2, or 3: ")
+    choice = input("Manga Collecting Tools\nby rarenight\n\nSelect an option:\n1. Manga Hasher\n2. Manga Verifier\n3. Manga Organizer\n\nEnter 1, 2, or 3: ")
     
     if choice == '1':
         directory = input("Enter the directory to process: ")
