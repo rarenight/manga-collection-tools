@@ -53,60 +53,6 @@ def process_files_in_directory(directory):
 
     return log, v_failures
 
-if __name__ == "__main__":
-    choice = input("Manga Collection Tools\nby rarenight\n\nSelect an option:\n1. Manga Hasher\n2. Manga Verifier\n3. Manga Organizer\n\nEnter 1, 2, or 3: ")
-
-    if choice == '1':
-        directory = input("Enter the directory to process: ")
-        if os.path.isdir(directory):
-            log, v_failures = process_files_in_directory(directory)
-            print("\nProcessing Log:")
-            for entry in log:
-                print(entry)
-            if v_failures:
-                print("\nFiles that failed the 7z integrity test:")
-                for failure in v_failures:
-                    print(failure)
-            print("Processing completed.")
-        else:
-            print("Invalid directory.")
-
-    elif choice == '2':
-        directory = input("Enter the directory to verify: ")
-        if os.path.isdir(directory):
-            log, mismatched_files = verify_files_in_directory(directory)
-            print("\nVerification Log:")
-            for entry in log:
-                print(entry)
-
-            if mismatched_files:
-                print(f"\n{len(mismatched_files)} mismatched files found.")
-                export_choice = input("Would you like to export the mismatched files to a text file? (y/n): ")
-                if export_choice.lower() == 'y':
-                    export_path = input("Enter the path for the export file (e.g., /path/to/mismatches.txt): ")
-                    try:
-                        with open(export_path, 'w') as f:
-                            for file in mismatched_files:
-                                f.write(file + '\n')
-                        print(f"Mismatched files exported to {export_path}.")
-                    except Exception as e:
-                        print(f"Error exporting mismatched files: {e}")
-            else:
-                print("All files verified successfully.")
-        else:
-            print("Invalid directory.")
-
-    elif choice == '3':
-        directory = input("Enter the directory to organize: ")
-        if os.path.isdir(directory):
-            organize_manga_directory(directory)
-            print("Manga organization completed.")
-        else:
-            print("Invalid directory.")
-
-    else:
-        print("Invalid choice.")
-
 def verify_files_in_directory(directory):
     log = []
     mismatched_files = []
@@ -208,10 +154,14 @@ if __name__ == "__main__":
     if choice == '1':
         directory = input("Enter the directory to process: ")
         if os.path.isdir(directory):
-            log = process_files_in_directory(directory)
+            log, v_failures = process_files_in_directory(directory)
             print("\nProcessing Log:")
             for entry in log:
                 print(entry)
+            if v_failures:
+                print("\nFiles that failed the 7z integrity test:")
+                for failure in v_failures:
+                    print(failure)
             print("Processing completed.")
         else:
             print("Invalid directory.")
