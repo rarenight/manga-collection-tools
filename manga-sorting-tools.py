@@ -82,34 +82,50 @@ def verify_files_in_directory(directory):
     return log, mismatched_files
 
 def organize_manga_directory(directory):
+    for root, _, files in os.walk(directory):
+        for file_name in files:
+            if file_name.endswith(('.cbz', '.cbr')):
+                title_match = re.match(r'(.+?) v(\d+)', file_name)
+                if title_match:
+                    title = title_match.group(1).strip()
+                    volume = title_match.group(2).strip()
+                    year_match = re.search(r'\((\d{4})\)', file_name)
+                    contributor_match = re.search(r'\(([^()]+)\)\s*\(Digital\)\s*\(([^()]+)\)\s*(\(v\))?\s*\[\w+\]\.cbz', file_name)
+                    v_match = '(v)' in file_name
+                    year = year_match.group(1) if year_match else ''
+                    contributor = contributor_match.group(2) if contributor_match else ''
+                    folder_name = f"{title} v{volume} ({year}) (Digital) ({contributor})"
+                    if v_match:
+                        folder_name += ' (v)'
+                    folder_path = os.path.join(root, folder_name)
+                    if not os.path.exists(folder_path):
+                        os.makedirs(folder_path)
+                    shutil.move(os.path.join(root, file_name), folder_path)
+
     for root, subdirs, files in os.walk(directory):
         for subdir in subdirs:
             subdir_path = os.path.join(root, subdir)
             archive_files = [f for f in os.listdir(subdir_path) if f.endswith(('.cbz', '.cbr'))]
-            
-            if not archive_files:
-                continue
-
             volumes = []
             years = []
             contributors = set()
+            v_flag = False
             
             for file_name in archive_files:
                 volume_match = re.search(r'v(\d+)', file_name)
                 year_match = re.search(r'\((\d{4})\)', file_name)
-                contributor_match = re.search(r'\(([^()]+)\)\.cbz', file_name)
-
+                contributor_match = re.search(r'\(([^()]+)\)\s*\(Digital\)\s*\(([^()]+)\)\s*(\(v\))?\s*\[\w+\]\.cbz', file_name)
+                if '(v)' in file_name:
+                    v_flag = True
                 if volume_match:
                     volumes.append(int(volume_match.group(1)))
-
                 if year_match:
                     years.append(int(year_match.group(1)))
-
                 if contributor_match:
-                    contributors.add(contributor_match.group(1))
+                    contributors.add(contributor_match.group(2))
 
             if volumes:
-                volume_range = f"v{min(volumes):02d}-{max(volumes):02d}"
+                volume_range = f"v{min(volumes):02d}-{max(volumes):02d}" if len(volumes) > 1 else f"v{volumes[0]:02d}"
             else:
                 volume_range = ""
 
@@ -119,26 +135,14 @@ def organize_manga_directory(directory):
                 year_range = ""
 
             contributors_str = ', '.join(sorted(contributors))
-
-            new_folder_name = f"{subdir} {volume_range} ({year_range}) (Digital) ({contributors_str})"
+            new_folder_name = f"{subdir.rsplit(' v', 1)[0]} {volume_range} ({year_range}) (Digital) ({contributors_str})"
+            if v_flag:
+                new_folder_name += ' (v)'
             new_folder_path = os.path.join(root, new_folder_name)
 
             if subdir_path != new_folder_path:
                 os.rename(subdir_path, new_folder_path)
                 print(f"Renamed folder '{subdir_path}' to '{new_folder_path}'")
-
-    # Handle loose files
-    for root, _, files in os.walk(directory):
-        for file_name in files:
-            if file_name.endswith(('.cbz', '.cbr')):
-                title_match = re.match(r'(.+?) v\d+', file_name)
-                if title_match:
-                    title = title_match.group(1)
-                    target_folder = os.path.join(directory, title)
-
-                    if os.path.exists(target_folder):
-                        shutil.move(os.path.join(root, file_name), target_folder)
-                        print(f"Moved '{file_name}' to '{target_folder}'")
 
 if __name__ == "__main__":
     choice = input("Manga Sorting Tools\nby rarenight\n\nSelect an option:\n1. Manga Hasher\n2. Manga Verifier\n3. Manga Organizer\n\nEnter 1, 2, or 3: ")
