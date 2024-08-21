@@ -131,7 +131,7 @@ def organize_manga_directory(directory):
         else:
             combined_range = volume_range if volume_range else chapter_range
 
-        new_folder_name = f"{title} ({combined_range}) ({year_range}) (Digital) ({contributors_str})"
+        new_folder_name = f"{title} ({combined_range}) ({year_range}) ({contributors_str})"
         if info['v_flag']:
             new_folder_name += ' (v)'
 
