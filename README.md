@@ -1,4 +1,4 @@
-Three functions:
+For my personal use. It has three functions:
 
 - Manga Hasher
 - Manga Verifier
