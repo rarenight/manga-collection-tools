@@ -19,12 +19,12 @@ def run_7z_test(file_path):
 
 def process_files_in_directory(directory):
     log = []
+    v_failures = []
+
     for root, _, files in os.walk(directory):
         for file_name in files:
             if file_name.endswith(('.zip', '.rar', '.7z', '.cbz', '.cbr')):
                 file_path = os.path.join(root, file_name)
-                log.append(f"Processing file: {file_path}")
-                
                 if '[' in file_name and ']' in file_name:
                     log.append(f"Skipping file '{file_name}': CRC32 already exists in the filename.")
                     continue
@@ -32,23 +32,80 @@ def process_files_in_directory(directory):
                 crc32 = calculate_crc32(file_path)
                 log.append(f"Calculated CRC32: {crc32}")
                 
+                new_name = None
+
                 if '(v)' not in file_name:
                     if run_7z_test(file_path):
                         new_name = f"{file_name.rsplit('.', 1)[0]} (v) [{crc32}].{file_name.rsplit('.', 1)[1]}"
                         log.append(f"7z test passed. New name will be: {new_name}")
                     else:
-                        new_name = f"{file_name.rsplit('.', 1)[0]} [{crc32}].{file_name.rsplit('.', 1)[1]}"
-                        log.append(f"7z test failed or '(v)' already in filename. New name will be: {new_name}")
+                        v_failures.append(file_name)
+                        log.append(f"7z test failed for '{file_name}'. CRC32 will not be added.")
                 else:
                     new_name = f"{file_name.rsplit('.', 1)[0]} [{crc32}].{file_name.rsplit('.', 1)[1]}"
                     log.append(f"File already has '(v)' in the filename. New name will be: {new_name}")
                 
-                new_file_path = os.path.join(root, new_name)
-                os.rename(file_path, new_file_path)
-                log.append(f"Renamed '{file_name}' to '{new_name}'")
+                if new_name:
+                    new_file_path = os.path.join(root, new_name)
+                    os.rename(file_path, new_file_path)
+                    log.append(f"Renamed '{file_name}' to '{new_name}'")
                 log.append("")
 
-    return log
+    return log, v_failures
+
+if __name__ == "__main__":
+    choice = input("Manga Collection Tools\nby rarenight\n\nSelect an option:\n1. Manga Hasher\n2. Manga Verifier\n3. Manga Organizer\n\nEnter 1, 2, or 3: ")
+
+    if choice == '1':
+        directory = input("Enter the directory to process: ")
+        if os.path.isdir(directory):
+            log, v_failures = process_files_in_directory(directory)
+            print("\nProcessing Log:")
+            for entry in log:
+                print(entry)
+            if v_failures:
+                print("\nFiles that failed the 7z integrity test:")
+                for failure in v_failures:
+                    print(failure)
+            print("Processing completed.")
+        else:
+            print("Invalid directory.")
+
+    elif choice == '2':
+        directory = input("Enter the directory to verify: ")
+        if os.path.isdir(directory):
+            log, mismatched_files = verify_files_in_directory(directory)
+            print("\nVerification Log:")
+            for entry in log:
+                print(entry)
+
+            if mismatched_files:
+                print(f"\n{len(mismatched_files)} mismatched files found.")
+                export_choice = input("Would you like to export the mismatched files to a text file? (y/n): ")
+                if export_choice.lower() == 'y':
+                    export_path = input("Enter the path for the export file (e.g., /path/to/mismatches.txt): ")
+                    try:
+                        with open(export_path, 'w') as f:
+                            for file in mismatched_files:
+                                f.write(file + '\n')
+                        print(f"Mismatched files exported to {export_path}.")
+                    except Exception as e:
+                        print(f"Error exporting mismatched files: {e}")
+            else:
+                print("All files verified successfully.")
+        else:
+            print("Invalid directory.")
+
+    elif choice == '3':
+        directory = input("Enter the directory to organize: ")
+        if os.path.isdir(directory):
+            organize_manga_directory(directory)
+            print("Manga organization completed.")
+        else:
+            print("Invalid directory.")
+
+    else:
+        print("Invalid choice.")
 
 def verify_files_in_directory(directory):
     log = []
