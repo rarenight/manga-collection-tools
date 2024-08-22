@@ -91,7 +91,7 @@ def organize_manga_directory(directory):
     for root, _, files in os.walk(directory):
         for file_name in files:
             if file_name.endswith(('.cbz', '.cbr')):
-                title_match = re.match(r'(.+?) (?:v(\d+)|(\d+)) \((\d{4})\) \(Digital\) \(([^()]+)\)', file_name)
+                title_match = re.match(r'(.+?) (?:v(\d+)|c?(\d{3})) \((\d{4})\) \(Digital\) \(([^()]+)\)', file_name)
                 if title_match:
                     title = title_match.group(1).strip()
                     volume = title_match.group(2)
