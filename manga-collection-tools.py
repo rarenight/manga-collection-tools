@@ -4,6 +4,7 @@ import re
 import shutil
 import zlib
 import subprocess
+from datetime import datetime
 
 def calculate_crc32(file_path):
     buf_size = 1048576
@@ -16,6 +17,11 @@ def calculate_crc32(file_path):
 def run_7z_test(file_path):
     result = subprocess.run(['7z', 't', file_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     return result.returncode == 0
+
+def normalize_filename(file_name):
+    base_name = re.sub(r'\s*\(v\)\s*|\s*\[\w+\]\s*', '', file_name)
+    base_name = re.sub(r'\W+', '', base_name).lower()
+    return base_name
 
 def process_files_in_directory(directory):
     log = []
@@ -58,11 +64,8 @@ def verify_files_in_directory(directory):
     mismatched_files = []
     matches = 0
     mismatches = 0
-    
-    print("Starting verification process...\n")
 
     for root, _, files in os.walk(directory):
-        print(f"Checking directory: {root}")
         for file_name in files:
             if file_name.endswith(('.zip', '.rar', '.7z', '.cbz', '.cbr')) and '[' in file_name and ']' in file_name:
                 file_path = os.path.join(root, file_name)
@@ -72,7 +75,6 @@ def verify_files_in_directory(directory):
                 
                 if crc32_in_name == calculated_crc32:
                     matches += 1
-                    print(f"Match: {file_name}")
                 else:
                     mismatches += 1
                     mismatched_files.append(file_path)
@@ -98,7 +100,7 @@ def organize_manga_directory(directory):
                     contributor = title_match.group(5)
                     v_match = '(v)' in file_name
 
-                    key = title.strip()
+                    key = normalize_filename(title)
 
                     if key not in organized_files:
                         organized_files[key] = {
@@ -120,7 +122,7 @@ def organize_manga_directory(directory):
                         organized_files[key]['contributors'].add(contributor)
                     if v_match:
                         organized_files[key]['v_flag'] = True
-                    organized_files[key]['files'].append(os.path.join(root, file_name))
+                    organized_files[key]['files'].append((os.path.join(root, file_name), calculate_crc32(os.path.join(root, file_name))))
 
     for title, info in organized_files.items():
         volume_range = f"v{min(info['volumes']):02d}-{max(info['volumes']):02d}" if len(info['volumes']) > 1 else f"v{list(info['volumes'])[0]:02d}" if info['volumes'] else ''
@@ -142,10 +144,26 @@ def organize_manga_directory(directory):
         if not os.path.exists(new_folder_path):
             os.makedirs(new_folder_path)
 
-        for file_path in info['files']:
-            shutil.move(file_path, new_folder_path)
-
-        print(f"Created folder '{new_folder_name}' with files moved.")
+        crc_to_file = {}
+        for file_path, crc in info['files']:
+            file_name = os.path.basename(file_path)
+            normalized_name = normalize_filename(file_name)
+            if normalized_name in crc_to_file:
+                existing_file, existing_crc = crc_to_file[normalized_name]
+                if crc == existing_crc:
+                    existing_mtime = os.path.getmtime(existing_file)
+                    current_mtime = os.path.getmtime(file_path)
+                    if existing_mtime < current_mtime:
+                        os.remove(file_path)
+                    else:
+                        os.remove(existing_file)
+                        crc_to_file[normalized_name] = (file_path, crc)
+                else:
+                    shutil.move(file_path, new_folder_path)
+                    crc_to_file[normalized_name] = (file_path, crc)
+            else:
+                shutil.move(file_path, new_folder_path)
+                crc_to_file[normalized_name] = (file_path, crc)
 
 if __name__ == "__main__":
     choice = input("Manga Collection Tools\nby rarenight\n\nSelect an option:\n1. Manga Hasher\n2. Manga Verifier\n3. Manga Organizer\n\nEnter 1, 2, or 3: ")
