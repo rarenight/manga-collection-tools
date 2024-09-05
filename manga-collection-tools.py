@@ -230,10 +230,14 @@ def organize_manga_directory(directory):
                         }
 
                     chapter_match = re.match(r'.+? c(\d{3,4})', file_name)
+                    three_digit_chapter_match = re.match(r'.+? (\d{3,4})', file_name)
                     volume_match = re.match(r'.+? v(\d+)', file_name)
 
                     if chapter_match:
                         chapter = int(chapter_match.group(1))
+                        organized_files[base_title]['chapters'].add(chapter)
+                    elif three_digit_chapter_match:
+                        chapter = int(three_digit_chapter_match.group(1))
                         organized_files[base_title]['chapters'].add(chapter)
                     elif volume_match:
                         volume = int(volume_match.group(1))
@@ -252,9 +256,14 @@ def organize_manga_directory(directory):
             if existing_files:
                 for f in existing_files:
                     chapter_match = re.match(r'.+? c(\d{3,4})', f)
+                    three_digit_chapter_match = re.match(r'.+? (\d{3,4})', f)
                     volume_match = re.match(r'.+? v(\d+)', f)
                     if chapter_match:
                         chapter = int(chapter_match.group(1))
+                        if chapter not in info['chapters']:
+                            info['chapters'].add(chapter)
+                    elif three_digit_chapter_match:
+                        chapter = int(three_digit_chapter_match.group(1))
                         if chapter not in info['chapters']:
                             info['chapters'].add(chapter)
                     if volume_match:
@@ -275,7 +284,6 @@ def organize_manga_directory(directory):
                 shutil.move(file_path, new_file_path)
 
     delete_empty_folders(directory)
-
 
 if __name__ == "__main__":
     while True:
