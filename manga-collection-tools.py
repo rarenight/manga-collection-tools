@@ -194,13 +194,14 @@ def delete_empty_folders(directory):
                 print(f"Deleted empty folder: {folder_path}")
 
 def get_base_title(file_name):
-    base_title_match = re.match(r'【(.+?)】', file_name)
+    # Match series names that include special characters
+    base_title_match = re.match(r'([#\(\w\) ]+)', file_name)
     if base_title_match:
         return base_title_match.group(1).strip()
     return None
 
 def rename_folder_based_on_contents(directory, title, info):
-    folder_name = f"【{title}】"
+    folder_name = f"{title}"
 
     combined_range = combine_chapter_and_volume_ranges(info['chapters'], info['volumes'])
     if combined_range:
