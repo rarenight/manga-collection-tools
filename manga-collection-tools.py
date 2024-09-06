@@ -101,10 +101,17 @@ def verify_files_in_directory(directory):
                 print(entry)
     return log, mismatched_files
 
+def sanitize_title(title):
+    title = re.sub(r'(\d+ - .+)', '', title)
+    title = re.sub(r'\{[^}]*\}', '', title)
+    title = re.sub(r'\([^)]*\)', '', title)
+    title = title.strip()
+    return title
+
 def get_base_title(file_name):
-    base_title_match = re.match(r'^[^\dv]*', file_name)
+    base_title_match = re.match(r'【([^】]*)】', file_name)
     if base_title_match:
-        return base_title_match.group(0).strip()
+        return sanitize_title(base_title_match.group(0))
     return None
 
 def combine_chapter_and_volume_ranges(chapters, volumes=None):
@@ -113,24 +120,33 @@ def combine_chapter_and_volume_ranges(chapters, volumes=None):
 
     if chapters:
         chapters = sorted(chapters)
-        chapter_range = f"c{chapters[0]:03d}-{chapters[-1]:03d}" if len(chapters) > 1 else f"c{chapters[0]:03d}"
+        chapter_groups = []
+        start = chapters[0]
+        for i in range(1, len(chapters)):
+            if chapters[i] != chapters[i - 1] + 1:
+                chapter_groups.append((start, chapters[i - 1]))
+                start = chapters[i]
+        chapter_groups.append((start, chapters[-1]))
+        chapter_range = ', '.join(f"c{start:03d}-{end:03d}" if start != end else f"c{start:03d}" for start, end in chapter_groups)
 
     if volumes:
         volumes = sorted(volumes)
-        volume_range = f"v{volumes[0]:02d}-{volumes[-1]:02d}" if len(volumes) > 1 else f"v{volumes[0]:02d}"
+        volume_groups = []
+        start = volumes[0]
+        for i in range(1, len(volumes)):
+            if volumes[i] != volumes[i - 1] + 1:
+                volume_groups.append((start, volumes[i - 1]))
+                start = volumes[i]
+        volume_groups.append((start, volumes[-1]))
+        volume_range = ', '.join(f"v{start:02d}-{end:02d}" if start != end else f"v{start:02d}" for start, end in volume_groups)
 
     return ', '.join(filter(None, [volume_range, chapter_range]))
 
-def delete_empty_folders(directory):
-    for root, dirs, files in os.walk(directory, topdown=False):
-        for dir_name in dirs:
-            folder_path = os.path.join(root, dir_name)
-            if not os.listdir(folder_path):
-                os.rmdir(folder_path)
-
-def rename_folder_based_on_contents(directory, title, info):
+def rename_folder_based_on_contents(directory, title, info, all_files_have_tag):
     combined_range = combine_chapter_and_volume_ranges(info['chapters'], info.get('volumes', []))
-    folder_name = f"{title.strip()} ({combined_range}) [v]"
+    folder_name = f"{title.strip()} ({combined_range})"
+    if all_files_have_tag:
+        folder_name += " [v]"
     new_folder_path = os.path.join(directory, folder_name)
     return new_folder_path
 
@@ -147,7 +163,8 @@ def organize_manga_directory(directory):
                         organized_files[base_title] = {
                             'chapters': set(),
                             'volumes': set(),
-                            'files': []
+                            'files': [],
+                            'all_files_have_tag': True
                         }
 
                     volume_match = re.search(r'(?<!\[)v(\d+)', file_name)
@@ -162,18 +179,31 @@ def organize_manga_directory(directory):
 
                     organized_files[base_title]['files'].append(os.path.join(root, file_name))
 
-    for title, info in organized_files.items():
-        new_folder_path = rename_folder_based_on_contents(directory, title, info)
+    for root, dirs, files in os.walk(directory, topdown=False):
+        for dir_name in dirs:
+            dir_path = os.path.join(root, dir_name)
+            all_files_have_v_tag = True
 
-        if not os.path.exists(new_folder_path):
-            os.makedirs(new_folder_path)
+            for file_name in os.listdir(dir_path):
+                if file_name.endswith(('.cbz', '.cbr')):
+                    if not re.search(r'\[v\d{1,10}[A-F0-9]{8}\]', file_name):
+                        all_files_have_v_tag = False
+                        break
 
-        for file_path in info['files']:
-            new_file_path = os.path.join(new_folder_path, os.path.basename(file_path))
-            if not os.path.exists(new_file_path):
-                shutil.move(file_path, new_file_path)
+            if all_files_have_v_tag:
+                new_folder_name = f"{dir_name} [v]" if not dir_name.endswith('[v]') else dir_name
+                new_folder_path = os.path.join(root, new_folder_name)
+                if dir_path != new_folder_path:
+                    os.rename(dir_path, new_folder_path)
 
     delete_empty_folders(directory)
+
+def delete_empty_folders(directory):
+    for root, dirs, files in os.walk(directory, topdown=False):
+        for dir_name in dirs:
+            folder_path = os.path.join(root, dir_name)
+            if not os.listdir(folder_path):
+                os.rmdir(folder_path)
 
 if __name__ == "__main__":
     while True:
