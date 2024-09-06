@@ -1,4 +1,3 @@
-import sys
 import os
 import re
 import shutil
@@ -56,7 +55,6 @@ def process_files_in_directory(directory):
 def verify_files_in_directory(directory):
     log = []
     mismatched_files = []
-    matched_files = []
     matches = 0
     mismatches = 0
     for root, _, files in os.walk(directory):
@@ -80,7 +78,6 @@ def verify_files_in_directory(directory):
                              f"Actual:   Size={file_size}, CRC32={calculated_crc32}\n")
                 if crc32_in_name == calculated_crc32 and size_in_name == file_size:
                     matches += 1
-                    matched_files.append(file_name)
                     log.append(f"Match:\n{log_entry}")
                 else:
                     mismatches += 1
@@ -94,11 +91,6 @@ def verify_files_in_directory(directory):
                     log.append(f"Mismatch:\n{log_entry}")
     log.append(f"\nTotal Matches: {matches}")
     log.append(f"Total Mismatches: {mismatches}")
-    if matches > 0:
-        print("\nMatched Files:")
-        for entry in log:
-            if "Match" in entry:
-                print(entry)
     return log, mismatched_files
 
 def sanitize_title(title):
@@ -109,92 +101,50 @@ def sanitize_title(title):
     return title
 
 def get_base_title(file_name):
-    base_title_match = re.match(r'【([^】]*)】', file_name)
+    base_title_match = re.split(r'(\d{3}|c\d{3}|v\d{2,3})', file_name, 1)
     if base_title_match:
-        return sanitize_title(base_title_match.group(0))
+        return sanitize_title(base_title_match[0])
     return None
 
-def combine_chapter_and_volume_ranges(chapters, volumes=None):
-    chapter_range = ""
-    volume_range = ""
-
-    if chapters:
-        chapters = sorted(chapters)
-        chapter_groups = []
-        start = chapters[0]
-        for i in range(1, len(chapters)):
-            if chapters[i] != chapters[i - 1] + 1:
-                chapter_groups.append((start, chapters[i - 1]))
-                start = chapters[i]
-        chapter_groups.append((start, chapters[-1]))
-        chapter_range = ', '.join(f"c{start:03d}-{end:03d}" if start != end else f"c{start:03d}" for start, end in chapter_groups)
-
-    if volumes:
-        volumes = sorted(volumes)
-        volume_groups = []
-        start = volumes[0]
-        for i in range(1, len(volumes)):
-            if volumes[i] != volumes[i - 1] + 1:
-                volume_groups.append((start, volumes[i - 1]))
-                start = volumes[i]
-        volume_groups.append((start, volumes[-1]))
-        volume_range = ', '.join(f"v{start:02d}-{end:02d}" if start != end else f"v{start:02d}" for start, end in volume_groups)
-
-    return ', '.join(filter(None, [volume_range, chapter_range]))
-
-def rename_folder_based_on_contents(directory, title, info, all_files_have_tag):
-    combined_range = combine_chapter_and_volume_ranges(info['chapters'], info.get('volumes', []))
-    folder_name = f"{title.strip()} ({combined_range})"
-    if all_files_have_tag:
-        folder_name += " [v]"
-    new_folder_path = os.path.join(directory, folder_name)
-    return new_folder_path
-
-def organize_manga_directory(directory):
+def move_and_rename_files(directory):
     organized_files = {}
 
     for root, dirs, files in os.walk(directory):
         for file_name in files:
             if file_name.endswith(('.cbz', '.cbr')):
                 base_title = get_base_title(file_name)
-
                 if base_title:
                     if base_title not in organized_files:
                         organized_files[base_title] = {
-                            'chapters': set(),
-                            'volumes': set(),
                             'files': [],
-                            'all_files_have_tag': True
+                            'all_files_have_v_tag': True
                         }
 
-                    volume_match = re.search(r'(?<!\[)v(\d+)', file_name)
-                    chapter_match = re.search(r'c?(\d{3,4})', file_name)
-
-                    if volume_match:
-                        volume = int(volume_match.group(1))
-                        organized_files[base_title]['volumes'].add(volume)
-                    elif chapter_match:
-                        chapter = int(chapter_match.group(1))
-                        organized_files[base_title]['chapters'].add(chapter)
+                    has_v_tag = bool(re.search(r'\[v\d+([A-F0-9]{8})\]', file_name))
+                    if not has_v_tag:
+                        organized_files[base_title]['all_files_have_v_tag'] = False
 
                     organized_files[base_title]['files'].append(os.path.join(root, file_name))
 
-    for root, dirs, files in os.walk(directory, topdown=False):
-        for dir_name in dirs:
-            dir_path = os.path.join(root, dir_name)
-            all_files_have_v_tag = True
+    for title, info in organized_files.items():
+        new_folder_name = title.strip()
+        if info['all_files_have_v_tag']:
+            new_folder_name += " [v]"
 
-            for file_name in os.listdir(dir_path):
-                if file_name.endswith(('.cbz', '.cbr')):
-                    if not re.search(r'\[v\d{1,10}[A-F0-9]{8}\]', file_name):
-                        all_files_have_v_tag = False
-                        break
+        new_folder_path = os.path.join(directory, new_folder_name)
 
-            if all_files_have_v_tag:
-                new_folder_name = f"{dir_name} [v]" if not dir_name.endswith('[v]') else dir_name
-                new_folder_path = os.path.join(root, new_folder_name)
-                if dir_path != new_folder_path:
-                    os.rename(dir_path, new_folder_path)
+        if not os.path.exists(new_folder_path):
+            os.makedirs(new_folder_path)
+
+        for file_path in info['files']:
+            new_file_path = os.path.join(new_folder_path, os.path.basename(file_path))
+
+            if os.path.exists(new_file_path):
+                print(f"Skipping '{new_file_path}' as it already exists.")
+                continue
+
+            shutil.move(file_path, new_file_path)
+            print(f"Moved '{file_path}' to '{new_file_path}'")
 
     delete_empty_folders(directory)
 
@@ -207,7 +157,7 @@ def delete_empty_folders(directory):
 
 if __name__ == "__main__":
     while True:
-        choice = input("\n\nManga Collection Tools\nby rarenight\n\nSelect an option:\n1. Manga Hasher\n2. Manga Verifier\n3. Manga Organizer\n4. Exit\n\nEnter 1, 2, 3, or 4: ")
+        choice = input("\n\nManga Collection Tools\nby rarenight\n\nSelect an option:\n1. Manga Hasher\n2. Manga Verifier\n3. Manga Sorter\n4. Exit\n\nEnter 1, 2, 3, or 4: ")
         if choice == '1':
             directory = input("Enter the directory to process: ")
             if os.path.isdir(directory):
@@ -250,9 +200,9 @@ if __name__ == "__main__":
             else:
                 print("Invalid directory.")
         elif choice == '3':
-            directory = input("Enter the directory to organize: ")
+            directory = input("Enter the directory to sort: ")
             if os.path.isdir(directory):
-                organize_manga_directory(directory)
+                move_and_rename_files(directory)
                 print("Manga organization completed.")
             else:
                 print("Invalid directory.")
