@@ -12,9 +12,6 @@ def calculate_crc32(file_path):
             crc32 = zlib.crc32(chunk, crc32)
     return f"{crc32 & 0xFFFFFFFF:08X}"
 
-def get_file_size(file_path):
-    return os.path.getsize(file_path)
-
 def run_7z_test(file_path):
     result = subprocess.run(['7z', 't', file_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     return result.returncode == 0
@@ -27,15 +24,14 @@ def process_files_in_directory(directory):
         for file_name in files:
             if file_name.endswith(('.zip', '.rar', '.7z', '.cbz', '.cbr')):
                 file_path = os.path.join(root, file_name)
-                match = re.search(r'\[v(\d+)([A-F0-9]{8})\]', file_name)
+                match = re.search(r'\[v-([A-F0-9]{8})\]', file_name)
                 if match:
-                    log.append(f"File '{file_name}' already contains the version pattern '[v{match.group(1)}{match.group(2)}]', skipping calculations.")
+                    log.append(f"File '{file_name}' already contains the version pattern '[v-{match.group(1)}]', skipping calculations.")
                     continue
                 crc32 = calculate_crc32(file_path)
-                size_in_bytes = get_file_size(file_path)
-                log.append(f"Calculated CRC32: {crc32} and size: {size_in_bytes} bytes")
+                log.append(f"Calculated CRC32: {crc32}")
                 new_name = None
-                expected_pattern = f"[v{size_in_bytes}{crc32}]"
+                expected_pattern = f"[v-{crc32}]"
                 if expected_pattern not in file_name:
                     if run_7z_test(file_path):
                         new_name = f"{file_name.rsplit('.', 1)[0]} {expected_pattern}.{file_name.rsplit('.', 1)[1]}"
@@ -59,32 +55,28 @@ def verify_files_in_directory(directory):
     mismatches = 0
     for root, _, files in os.walk(directory):
         for file_name in files:
-            if file_name.endswith(('.zip', '.rar', '.7z', '.cbz', '.cbr')) and re.search(r'\[v(\d+)([A-F0-9]{8})\]', file_name):
+            if file_name.endswith(('.zip', '.rar', '.7z', '.cbz', '.cbr')) and re.search(r'\[v-([A-F0-9]{8})\]', file_name):
                 file_path = os.path.join(root, file_name)
                 try:
-                    match = re.search(r'\[v(\d+)([A-F0-9]{8})\]', file_name)
+                    match = re.search(r'\[v-([A-F0-9]{8})\]', file_name)
                     if not match:
                         raise ValueError("Pattern not found in filename.")
-                    size_in_name = int(match.group(1))
-                    crc32_in_name = match.group(2)
+                    crc32_in_name = match.group(1)
                 except (ValueError, IndexError) as e:
                     log.append(f"Error parsing '{file_name}': {e}")
                     mismatched_files.append(file_path)
                     continue
                 calculated_crc32 = calculate_crc32(file_path)
-                file_size = get_file_size(file_path)
                 log_entry = (f"File: {file_name}\n"
-                             f"Expected: Size={size_in_name}, CRC32={crc32_in_name}\n"
-                             f"Actual:   Size={file_size}, CRC32={calculated_crc32}\n")
-                if crc32_in_name == calculated_crc32 and size_in_name == file_size:
+                             f"Expected CRC32: {crc32_in_name}\n"
+                             f"Actual CRC32:   {calculated_crc32}\n")
+                if crc32_in_name == calculated_crc32:
                     matches += 1
                     log.append(f"Match:\n{log_entry}")
                 else:
                     mismatches += 1
                     mismatched_files.append({
                         'file': file_path,
-                        'expected_size': size_in_name,
-                        'actual_size': file_size,
                         'expected_crc32': crc32_in_name,
                         'actual_crc32': calculated_crc32
                     })
