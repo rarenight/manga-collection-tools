@@ -10,69 +10,60 @@ def calculate_crc32(file_path):
     with open(file_path, 'rb', buffering=0) as f:
         for chunk in iter(lambda: f.read(buf_size), b''):
             crc32 = zlib.crc32(chunk, crc32)
-    return f"{crc32 & 0xFFFFFFFF:08X}"
+    return f"{crc32 & 0xFFFFFFFF:08x}"
 
 def run_7z_test(file_path):
-    result = subprocess.run(['7z', 't', file_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    seven_z_path = "/home/rarenight/downloads/7zz"
+    result = subprocess.run([seven_z_path, 't', file_path], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     return result.returncode == 0
 
 def process_files_in_directory(directory):
-    log = []
     v_failures = []
-
     for root, _, files in os.walk(directory):
         for file_name in files:
             if file_name.endswith(('.zip', '.rar', '.7z', '.cbz', '.cbr')):
                 file_path = os.path.join(root, file_name)
-                match = re.search(r'\[v-([A-F0-9]{8})\]', file_name)
-                if match:
-                    log.append(f"File '{file_name}' already contains the CRC32 pattern '[v-{match.group(1)}]', skipping calculations.")
+                if re.search(r'\[v-[a-fA-F0-9]{8}\]', file_name):
+                    print(f"Skipping '{file_name}' as it already has [v-CRC32].")
                     continue
                 crc32 = calculate_crc32(file_path)
-                log.append(f"Calculated CRC32: {crc32}")
+                print(f"Calculated CRC32: {crc32} for '{file_name}'")
                 new_name = None
                 expected_pattern = f"[v-{crc32}]"
                 if expected_pattern not in file_name:
                     if run_7z_test(file_path):
                         new_name = f"{file_name.rsplit('.', 1)[0]} {expected_pattern}.{file_name.rsplit('.', 1)[1]}"
-                        log.append(f"7z test passed. New name will be: {new_name}")
+                        print(f"7z test passed. Renaming to: '{new_name}'")
                     else:
                         v_failures.append(file_name)
-                        log.append(f"7z test failed for '{file_name}'. CRC32 will not be added.")
-                else:
-                    log.append(f"File already contains the pattern '{expected_pattern}'.")
+                        print(f"7z test failed for '{file_name}'. CRC32 will not be added.")
                 if new_name:
                     new_file_path = os.path.join(root, new_name)
                     os.rename(file_path, new_file_path)
-                    log.append(f"Renamed '{file_name}' to '{new_name}'")
-                log.append("")
-    return log, v_failures
+                    print(f"Renamed '{file_name}' to '{new_name}'\n")
+    return v_failures
 
 def verify_files_in_directory(directory):
-    log = []
     mismatched_files = []
     matches = 0
     mismatches = 0
     for root, _, files in os.walk(directory):
         for file_name in files:
-            if file_name.endswith(('.zip', '.rar', '.7z', '.cbz', '.cbr')) and re.search(r'\[v-([A-F0-9]{8})\]', file_name):
+            if file_name.endswith(('.zip', '.rar', '.7z', '.cbz', '.cbr')) and re.search(r'\[v-([a-f0-9]{8})\]', file_name):
                 file_path = os.path.join(root, file_name)
                 try:
-                    match = re.search(r'\[v-([A-F0-9]{8})\]', file_name)
+                    match = re.search(r'\[v-([a-f0-9]{8})\]', file_name)
                     if not match:
                         raise ValueError("Pattern not found in filename.")
                     crc32_in_name = match.group(1)
                 except (ValueError, IndexError) as e:
-                    log.append(f"Error parsing '{file_name}': {e}")
+                    print(f"Error parsing '{file_name}': {e}")
                     mismatched_files.append(file_path)
                     continue
                 calculated_crc32 = calculate_crc32(file_path)
-                log_entry = (f"File: {file_name}\n"
-                             f"Expected CRC32: {crc32_in_name}\n"
-                             f"Actual CRC32:   {calculated_crc32}\n")
                 if crc32_in_name == calculated_crc32:
                     matches += 1
-                    log.append(f"Match:\n{log_entry}")
+                    print(f"Match: {file_name} (Expected: {crc32_in_name}, Actual: {calculated_crc32})")
                 else:
                     mismatches += 1
                     mismatched_files.append({
@@ -80,10 +71,10 @@ def verify_files_in_directory(directory):
                         'expected_crc32': crc32_in_name,
                         'actual_crc32': calculated_crc32
                     })
-                    log.append(f"Mismatch:\n{log_entry}")
-    log.append(f"\nTotal Matches: {matches}")
-    log.append(f"Total Mismatches: {mismatches}")
-    return log, mismatched_files
+                    print(f"Mismatch: {file_name} (Expected: {crc32_in_name}, Actual: {calculated_crc32})")
+    print(f"Total Matches: {matches}")
+    print(f"Total Mismatches: {mismatches}")
+    return mismatched_files
 
 def sanitize_title(title):
     title = re.sub(r'(\d+ - .+)', '', title)
@@ -100,7 +91,6 @@ def get_base_title(file_name):
 
 def move_and_rename_files(directory):
     organized_files = {}
-
     for root, dirs, files in os.walk(directory):
         for file_name in files:
             if file_name.endswith(('.cbz', '.cbr')):
@@ -111,33 +101,24 @@ def move_and_rename_files(directory):
                             'files': [],
                             'all_files_have_v_tag': True
                         }
-
                     has_v_tag = bool(re.search(r'\[v-([A-F0-9]{8})\]', file_name))
                     if not has_v_tag:
                         organized_files[base_title]['all_files_have_v_tag'] = False
-
                     organized_files[base_title]['files'].append(os.path.join(root, file_name))
-
     for title, info in organized_files.items():
         new_folder_name = title.strip()
         if info['all_files_have_v_tag']:
             new_folder_name += " [v]"
-
         new_folder_path = os.path.join(directory, new_folder_name)
-
         if not os.path.exists(new_folder_path):
             os.makedirs(new_folder_path)
-
         for file_path in info['files']:
             new_file_path = os.path.join(new_folder_path, os.path.basename(file_path))
-
             if os.path.exists(new_file_path):
                 print(f"Skipping '{new_file_path}' as it already exists.")
                 continue
-
             shutil.move(file_path, new_file_path)
             print(f"Moved '{file_path}' to '{new_file_path}'")
-
     delete_empty_folders(directory)
 
 def delete_empty_folders(directory):
@@ -153,10 +134,7 @@ if __name__ == "__main__":
         if choice == '1':
             directory = input("Enter the directory to process: ")
             if os.path.isdir(directory):
-                log, v_failures = process_files_in_directory(directory)
-                print("\nProcessing Log:")
-                for entry in log:
-                    print(entry)
+                v_failures = process_files_in_directory(directory)
                 if v_failures:
                     print("\nFiles that failed the 7z integrity test:")
                     for failure in v_failures:
@@ -167,14 +145,13 @@ if __name__ == "__main__":
         elif choice == '2':
             directory = input("Enter the directory to verify: ")
             if os.path.isdir(directory):
-                log, mismatched_files = verify_files_in_directory(directory)
+                mismatched_files = verify_files_in_directory(directory)
                 if len(mismatched_files) > 0:
                     print("\nSummary of Mismatched Files:\n")
                     for mismatch in mismatched_files:
                         print(f"File: {mismatch['file']}")
                         print(f"Expected CRC32: {mismatch['expected_crc32']}")
                         print(f"Actual CRC32: {mismatch['actual_crc32']}")
-                        print("")
                     export_choice = input("Would you like to export the mismatched files to a text file? (y/n): ")
                     if export_choice.lower() == 'y':
                         export_path = input("Enter the path for the export file (e.g., C:/path/to/mismatches.txt): ")
