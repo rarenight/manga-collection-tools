@@ -24,17 +24,14 @@ def process_files_in_directory(directory):
         for file_name in files:
             if file_name.endswith(('.zip', '.rar', '.7z', '.cbz', '.cbr')):
                 file_path = os.path.join(root, file_name)
-                # Check if file already has the [v-CRC32] tag
                 match = re.search(r'\[v-([A-F0-9]{8})\]', file_name)
                 if match:
                     log.append(f"File '{file_name}' already contains the CRC32 pattern '[v-{match.group(1)}]', skipping calculations.")
                     continue
-                # Calculate CRC32 and create the new name pattern
                 crc32 = calculate_crc32(file_path)
                 log.append(f"Calculated CRC32: {crc32}")
                 new_name = None
                 expected_pattern = f"[v-{crc32}]"
-                # If the expected pattern is not in the filename, process it
                 if expected_pattern not in file_name:
                     if run_7z_test(file_path):
                         new_name = f"{file_name.rsplit('.', 1)[0]} {expected_pattern}.{file_name.rsplit('.', 1)[1]}"
@@ -44,7 +41,6 @@ def process_files_in_directory(directory):
                         log.append(f"7z test failed for '{file_name}'. CRC32 will not be added.")
                 else:
                     log.append(f"File already contains the pattern '{expected_pattern}'.")
-                # Rename the file if new_name is set
                 if new_name:
                     new_file_path = os.path.join(root, new_name)
                     os.rename(file_path, new_file_path)
@@ -62,7 +58,6 @@ def verify_files_in_directory(directory):
             if file_name.endswith(('.zip', '.rar', '.7z', '.cbz', '.cbr')) and re.search(r'\[v-([A-F0-9]{8})\]', file_name):
                 file_path = os.path.join(root, file_name)
                 try:
-                    # Extract CRC32 from the filename
                     match = re.search(r'\[v-([A-F0-9]{8})\]', file_name)
                     if not match:
                         raise ValueError("Pattern not found in filename.")
@@ -71,7 +66,6 @@ def verify_files_in_directory(directory):
                     log.append(f"Error parsing '{file_name}': {e}")
                     mismatched_files.append(file_path)
                     continue
-                # Calculate CRC32 from the file
                 calculated_crc32 = calculate_crc32(file_path)
                 log_entry = (f"File: {file_name}\n"
                              f"Expected CRC32: {crc32_in_name}\n"
@@ -92,14 +86,13 @@ def verify_files_in_directory(directory):
     return log, mismatched_files
 
 def sanitize_title(title):
-    title = re.sub(r'(\d+ - .+)', '', title)  # Remove patterns like '000 - Title'
-    title = re.sub(r'\{[^}]*\}', '', title)  # Remove text inside curly braces
-    title = re.sub(r'\([^)]*\)', '', title)  # Remove text inside parentheses
+    title = re.sub(r'(\d+ - .+)', '', title)
+    title = re.sub(r'\{[^}]*\}', '', title)
+    title = re.sub(r'\([^)]*\)', '', title)
     title = title.strip()
     return title
 
 def get_base_title(file_name):
-    # Split the file name to extract the base title before volume/chapter info
     base_title_match = re.split(r'(\d{3}|c\d{3}|v\d{2,3})', file_name, 1)
     if base_title_match:
         return sanitize_title(base_title_match[0])
@@ -119,7 +112,6 @@ def move_and_rename_files(directory):
                             'all_files_have_v_tag': True
                         }
 
-                    # Check if the file already has the [v-CRC32] tag
                     has_v_tag = bool(re.search(r'\[v-([A-F0-9]{8})\]', file_name))
                     if not has_v_tag:
                         organized_files[base_title]['all_files_have_v_tag'] = False
